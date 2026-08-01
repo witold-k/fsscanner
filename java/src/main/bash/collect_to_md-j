@@ -1,0 +1,11 @@
+#!/bin/bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+name=fsscanner-runner-1.0-SNAPSHOT.jar
+
+if [ -f "$DIR/../../../target/$name" ]; then
+    java -jar "$DIR/../../../target/$name" "$@"
+fi
+if [ -f "$DIR/$name" ]; then
+    java -jar "$DIR/$name" "$@"
+fi
+

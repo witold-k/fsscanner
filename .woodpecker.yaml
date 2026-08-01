@@ -1,0 +1,68 @@
+# .woodpecker.yaml
+# Codeberg CI/CD Pipeline (Woodpecker CI) for Rust
+
+kind: pipeline
+name: rust-ci
+
+# Trigger pipeline on pushes and pull requests to main branches
+when:
+  - event: [push, pull_request]
+    branch: [main, master, develop]
+
+variables:
+  - &rust_image "rust:1.81" # Pin your preferred stable Rust image version
+
+steps:
+  # 1. Fetch dependencies and compile the workspace
+  - name: build
+    image: *rust_image
+    commands:
+      - cargo build --verbose
+
+  # 2. Run unit and integration tests with full backtrace enabled
+  - name: test
+    image: *rust_image
+    environment:
+      RUST_BACKTRACE: "1"
+    commands:
+      - cargo test --verbose
+
+  # 3. Analyze code quality using Clippy
+  - name: lint
+    image: *rust_image
+    commands:
+      - rustup component add clippy
+      - cargo clippy -- -D warnings
+
+  # 4. Generate test coverage metrics (mirroring your 'cover' recipe)
+  - name: coverage
+    image: *rust_image
+    environment:
+      CARGO_INCREMENTAL: "0"
+      RUSTFLAGS: "-Cinstrument-coverage"
+      LLVM_PROFILE_FILE: "target/coverage/cargo-test-%p-%m.profraw"
+    commands:
+      - rustup component add llvm-tools-preview
+      - cargo install grcov
+      - cargo test
+      - mkdir -p target/coverage/html
+      - grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/html
+    # Keep artifact even if previous step failed to help debug
+    when:
+      - status: [success, failure]
+
+  # 5. Optional: Cache cargo packages to speed up consecutive pipeline runs
+  # Note: Requires a compatible Woodpecker cache plugin enabled on the runner
+  - name: cache-save
+    image: meltwater/drone-cache
+    settings:
+      backend: "filesystem"
+      select:
+        - ~/.cargo/registry
+        - ~/.cargo/git
+        - target
+      save: true
+    when:
+      - event: push
+        status: success
+

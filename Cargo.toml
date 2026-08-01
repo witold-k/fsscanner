@@ -1,0 +1,10 @@
+[package]
+name = "fsscanner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+
+# -- threadpool --------------------------------------------------------------
+crossbeam-channel = "0.5.16"

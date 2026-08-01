@@ -1,0 +1,6 @@
+/target
+/java/target
+buildscripts
+.classpath
+.project
+.settings/

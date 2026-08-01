@@ -1,0 +1,75 @@
+# .github/workflows/ci.yml
+# GitHub Actions CI/CD Pipeline for Rust
+
+name: Rust CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  # 1. Build and Test Job
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7 
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, llvm-tools-preview
+
+      - name: Compile project
+        run: cargo build --verbose
+
+      - name: Run test suite
+        run: cargo test --verbose
+
+      - name: Run code linter
+        run: cargo clippy -- -D warnings
+
+  # 2. Separate Coverage Job to isolate coverage instrumentation
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7 
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install grcov
+        run: cargo install grcov
+
+      - name: Generate profile data
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Cinstrument-coverage"
+          LLVM_PROFILE_FILE: "target/coverage/cargo-test-%p-%m.profraw"
+        run: cargo test
+
+      - name: Process report with grcov
+        run: |
+          mkdir -p target/coverage/html
+          grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/html
+
+      - name: Upload coverage report artifact
+        uses: actions/upload-artifact@v7 
+        with:
+          name: coverage-report
+          path: target/coverage/html/
+          retention-days: 1
+

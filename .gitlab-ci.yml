@@ -1,0 +1,72 @@
+# .gitlab-ci.yml
+# GitLab CI/CD Pipeline for Rust
+
+image: rust:1.81-slim
+
+# Global environment variables
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  RUST_BACKTRACE: "1"
+
+# Define pipeline execution sequence
+stages:
+  - build
+  - test
+  - lint
+  - coverage
+
+# Global cache rules applied to all jobs
+cache:
+  key:
+    files:
+      - Cargo.lock
+  paths:
+    - .cargo/registry/index/
+    - .cargo/registry/cache/
+    - .cargo/git/db/
+    - target/
+
+# 1. Compilation Stage
+build_job:
+  stage: build
+  script:
+    - cargo build --verbose
+
+# 2. Test Stage
+test_job:
+  stage: test
+  script:
+    - cargo test --verbose
+
+# 3. Static Analysis Stage
+clippy_job:
+  stage: lint
+  before_script:
+    - rustup component add clippy
+  script:
+    - cargo clippy -- -D warnings
+
+# 4. Coverage Report Stage
+coverage_job:
+  stage: coverage
+  dependencies: [] # Don't pull build artifacts; we need clean instrumentation
+  variables:
+    CARGO_INCREMENTAL: "0"
+    RUSTFLAGS: "-Cinstrument-coverage"
+    LLVM_PROFILE_FILE: "target/coverage/cargo-test-%p-%m.profraw"
+  before_script:
+    # apt-get is required because we used a slim image for speed
+    - apt-get update && apt-get install -y cmake build-essential gcc
+    - rustup component add llvm-tools-preview
+    - cargo install grcov
+  script:
+    - cargo test
+    - mkdir -p target/coverage/html
+    - grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/html
+  artifacts:
+    name: "coverage-report-${CI_COMMIT_REF_SLUG}"
+    expose_as: 'Code Coverage Report'
+    paths:
+      - target/coverage/html/
+    expire_in: 1 week
+
