@@ -11,14 +11,56 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <wasmtime.version>0.15.0</wasmtime.version> <!-- Aktuelle stabile JNI-Version -->
+        <wasmtime.version>0.15.0</wasmtime.version>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>io.github.kawamuray.wasmtime</groupId>
-            <artifactId>wasmtime-java</artifactId>
-            <version>${wasmtime.version}</version>
+            <groupId>io.github.stefanrichterhuber</groupId>
+            <artifactId>wasmtimejavang</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.stefanrichterhuber</groupId>
+            <artifactId>wasmtimejavang-wasi-clocks</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.stefanrichterhuber</groupId>
+            <artifactId>wasmtimejavang-wasi-random</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.stefanrichterhuber</groupId>
+            <artifactId>wasmtimejavang-wasi-cli</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.stefanrichterhuber</groupId>
+            <artifactId>wasmtimejavang-wasi-io</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.stefanrichterhuber</groupId>
+            <artifactId>wasmtimejavang-wasi-filesystem</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.23.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.23.1</version>
         </dependency>
     </dependencies>
 
@@ -29,13 +71,13 @@
                 <directory>src/main/resources</directory>
             </resource>
             <resource>
-                <directory>${project.basedir}/../target/wasm32-wasip1/release</directory>
+                <directory>${project.basedir}/../target/wasm32-wasip2/release</directory>
                 <includes>
                     <include>collect_to_md.wasm</include>
                 </includes>
             </resource>
             <resource>
-                <directory>${project.basedir}/../../target/wasm32-wasip1/release</directory>
+                <directory>${project.basedir}/../../target/wasm32-wasip2/release</directory>
                 <includes>
                     <include>collect_to_md.wasm</include>
                 </includes>
@@ -71,14 +113,21 @@
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
+                                <!-- WICHTIG: Kombiniert die ServiceLoader-Dateien aller WASI-Module -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>fsscanner.CollectToMdWasmtime</mainClass>
+                                    <manifestEntries>
+                                        <Multi-Release>true</Multi-Release>
+                                    </manifestEntries>
                                 </transformer>
                             </transformers>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
         </plugins>
     </build>
 </project>

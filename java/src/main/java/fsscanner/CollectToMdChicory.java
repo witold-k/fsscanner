@@ -14,7 +14,6 @@ import java.util.List;
 
 public class CollectToMdChicory {
     public static void main(String[] args) {
-        // 1. Pfad ermitteln und normalisieren
         String userDir = args.length > 0 ? args[0] : ".";
         Path targetHostPath = Path.of(userDir).toAbsolutePath().normalize();
 
@@ -31,7 +30,6 @@ public class CollectToMdChicory {
         WasmModule module = Parser.parse(wasmStream);
         SystemLogger logger = new SystemLogger();
 
-        // Argumente für Rust umschreiben
         List<String> wasmArgs = new ArrayList<>();
         wasmArgs.add("collect_to_md");
         wasmArgs.add("/target_dir");
@@ -62,7 +60,7 @@ public class CollectToMdChicory {
                 instance.export("_start").apply();
             }
         } catch (com.dylibso.chicory.wasi.WasiExitException e) {
-            System.exit(e.exitCode());
+            //System.exit(e.exitCode());
         } catch (com.dylibso.chicory.runtime.TrapException e) {
             if (!e.getMessage().contains("unreachable") && !e.getMessage().contains("exit")) {
                 throw e;

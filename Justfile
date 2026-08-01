@@ -14,14 +14,14 @@ build:
     cargo clippy
 
 build-java-c:
-    cargo build --target wasm32-wasip2 --release
+    cargo build --target wasm32-wasip1 --release
     cd java && mvn -f pom-chicory.xml install
     java -jar java/target/fsscanner-runner-1.0-SNAPSHOT.jar
 
 build-java-w:
     cargo build --target wasm32-wasip2 --release
     cd java && mvn -f pom-wasmtime.xml install
-    java -jar java/target/fsscanner-runner-1.0-SNAPSHOT.jar
+    java --enable-native-access=ALL-UNNAMED -jar java/target/fsscanner-wasmtime.jar
 
 fix:
     aifix -t fix_rust_code -f {{current_dir}} -f {{current_dir}}/..
@@ -38,7 +38,8 @@ install-local:
 
 clean:
 	@cargo clean -p {{module_name}}
-	@cd java && mvn clean
+	@cd java && mvn -f pom-chicory.xml clean
+	@cd java && mvn -f pom-wasmtime.xml clean
 
 cover:
 	CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='target/coverage/cargo-test-%p-%m.profraw' cargo test
