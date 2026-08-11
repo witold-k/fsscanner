@@ -17,6 +17,54 @@ use std::{
     path::{Path, PathBuf}
 };
 
+/// Traverses a directory tree non-recursively and collects all regular files.
+///
+/// Directory traversal is stack-based, so deeply nested directory trees do not
+/// consume the call stack. Symlinked directories are resolved through
+/// canonicalization and tracked to prevent cyclic traversal.
+pub fn collect_files_all(root: &Path, out: &mut Vec<PathBuf>) {
+    let mut stack = Vec::with_capacity(128);
+    let mut visited_symlink_dirs = HashSet::with_capacity(128);
+
+    stack.push(root.to_path_buf());
+
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        for entry in entries.flatten() {
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+
+            let path = entry.path();
+
+            if file_type.is_dir() {
+                // Fast path: normal directory -> no cycle possible
+                if !file_type.is_symlink() {
+                    stack.push(path);
+                    continue;
+                }
+
+                // Slow path: symlinked directory -> must check for cycles
+                match path.canonicalize() {
+                    Ok(canon) => {
+                        if visited_symlink_dirs.insert(canon) {
+                            stack.push(path);
+                        }
+                    }
+                    Err(_) => continue,
+                }
+            } else if file_type.is_file() {
+                out.push(path);
+            }
+        }
+    }
+}
+
 /// Traverses a directory tree to collect paths matching a single target file extension.
 ///
 /// Iterates over directory branches using an internal allocation stack. If it encounters
