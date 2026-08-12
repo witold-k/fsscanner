@@ -92,7 +92,7 @@ impl FileEntry {
                         // No filter means every path is valid.
                         let is_valid = filter_clone
                             .as_ref()
-                            .map_or(true, |filter| filter.contains(path_ref));
+                            .is_none_or(|filter| filter.contains(path_ref));
 
                         if is_valid {
                             let data =
@@ -170,7 +170,7 @@ impl FileEntry {
                         // No filter means every path is valid.
                         let is_valid = filter_clone
                             .as_ref()
-                            .map_or(true, |filter| filter.contains(&path));
+                            .is_none_or(|filter| filter.contains(&path));
 
                         if is_valid {
                             let data =
