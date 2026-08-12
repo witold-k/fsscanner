@@ -68,7 +68,7 @@ mod tests {
         // If Pathfilter::new() requires specialized parameters, adjust this initialization
         let filter = Pathfilter::from_versioned_project();
 
-        let entries = FileEntry::vec_from_filtered_stringvec(&filter, str_list);
+        let entries = FileEntry::vec_from_filtered_stringvec(Some(&filter), str_list);
 
         // If your filter configuration permits Cargo.toml, check the item exists in the collection
         let target_path = PathBuf::from("Cargo.toml");
@@ -85,7 +85,7 @@ mod tests {
         ];
 
         let filter = Pathfilter::from_versioned_project();
-        let entries = FileEntry::vec_from_filtered_pathbufvec(&filter, path_list);
+        let entries = FileEntry::vec_from_filtered_pathbufvec(Some(&filter), path_list);
 
         let target_path = PathBuf::from("Cargo.toml");
         if filter.contains(&target_path) {
