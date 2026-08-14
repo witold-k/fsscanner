@@ -14,6 +14,9 @@ build:
     RUST_BACKTRACE=1 cargo test
     cargo clippy
 
+build-jvm:
+    RUSTFLAGS="-C panic=unwind" cargo jvm build
+
 build-java-c:
     cargo build --target wasm32-wasip1 --release
     cd java && mvn -f pom-chicory.xml install
