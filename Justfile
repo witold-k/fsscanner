@@ -5,7 +5,7 @@ user_name        := env("USER")
 current_location := justfile()
 current_dir      := justfile_directory()
 module_name      := file_name(current_dir)
-# target_dir       := `cargo metadata --no-deps --format-version=1 | jq -r '.target_directory'`
+target_dir       := `cargo metadata --no-deps --format-version=1 | jq -r '.target_directory'`
 
 default: build
 
@@ -33,12 +33,15 @@ fix:
 doc:
     aifix -t doc_rust_code -f {{current_dir}} -f {{current_dir}}/..
 
+test-jvm:
+    java -cp $HOME/.local/share/cargo-jvm/rustc_codegen_jvm/runtime/build/libs/runtime-0.1.0.jar:{{target_dir}}/jvm-unknown-jvm/debug/collect_to_md.jar collect_to_md.collect_to_md
+
 release:
 	RUST_BACKTRACE=1 cargo build --release
-	cp target/release/collect_to_md ~/bin/
+	cp {{target_dir}}/release/collect_to_md ~/bin/
 
 install-local:
-    cp target/release/collect_to_md ~/bin/
+    cp {{target_dir}}/release/collect_to_md ~/bin/
 
 clean:
 	@cargo clean -p {{module_name}}
