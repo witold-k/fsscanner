@@ -39,6 +39,14 @@ impl FileEntry {
         }
     }
 
+    /// load data from path, overwrites old one
+    ///
+    /// If the file cannot be read, the content is set to an empty string.
+    #[inline(always)]
+    pub fn load(&mut self) {
+        self.data = std::fs::read_to_string(&self.path).unwrap_or_default();
+    }
+
     /// Parallelly filters and reads a list of path strings by spinning up
     /// a local `ThreadPool`.
     ///
