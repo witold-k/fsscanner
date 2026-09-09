@@ -43,13 +43,22 @@ impl FileEntry {
     ///
     /// If the file cannot be read, the content is set to an empty string.
     #[inline(always)]
-    pub fn load(self) -> Self {
+    pub fn new_load(self) -> Self {
         let data = std::fs::read_to_string(&self.path).unwrap_or_default();
 
         Self {
             path: self.path,
             data,
         }
+    }
+
+    /// Load data from path, overwriting the old one.
+    ///
+    /// If the file cannot be read, the content is set to an empty string.
+    #[inline(always)]
+    pub fn load(&mut self) -> &mut Self {
+        self.data = std::fs::read_to_string(&self.path).unwrap_or_default();
+        self
     }
 
     /// Parallelly filters and reads a list of path strings by spinning up
