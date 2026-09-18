@@ -31,3 +31,24 @@ fn absolute_paths_do_not_escape_root() {
         PathBuf::from("/file")
     );
 }
+
+#[test]
+fn expands_leading_tilde_to_home_directory() {
+    let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    let Some(home) = std::env::var_os(home_var) else {
+        return;
+    };
+
+    assert_eq!(
+        normalize_path(Path::new("~/project/file.rs")),
+        PathBuf::from(home).join("project/file.rs")
+    );
+}
+
+#[test]
+fn does_not_expand_non_leading_tilde() {
+    assert_eq!(
+        normalize_path(Path::new("project/~/file.rs")),
+        PathBuf::from("project/~/file.rs")
+    );
+}
