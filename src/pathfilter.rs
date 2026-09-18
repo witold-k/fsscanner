@@ -113,12 +113,13 @@ impl Pathfilter {
 
     #[inline]
     fn relative_path_stays_within(base: &Path, path: &Path) -> bool {
-        let mut depth = base.components().count();
+        let base_depth = base.components().count();
+        let mut depth = base_depth;
 
         for component in path.components() {
             match component {
                 Component::ParentDir => {
-                    if depth == 0 {
+                    if depth == base_depth {
                         return false;
                     }
                     depth -= 1;
@@ -129,7 +130,7 @@ impl Pathfilter {
             }
         }
 
-        depth >= base.components().count()
+        true
     }
 
     /// Checks blocked directory names component by component to avoid substring
