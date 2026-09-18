@@ -16,6 +16,7 @@ The library provides both low-level file collection helpers and higher-level pro
 - **Optional parallel processing** — higher-level helpers can execute independent file-processing callbacks through a lightweight internal thread pool.
 - **Path-preserving output mapping** — processing helpers can reproduce the relative input directory structure below a separate output root and replace file suffixes automatically.
 - **Library-first design** — `fsscanner` performs traversal and orchestration; application-specific work stays in caller-provided callbacks.
+- **Consistent test layout** — tests live under `tests/`, mirror the relative `src/` hierarchy, and use the source filename with a `_test.rs` suffix.
 
 ## Main building blocks
 
