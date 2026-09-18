@@ -35,75 +35,63 @@ pub fn from_versioned_project(current: &Path) -> PathBuf {
 
 pub fn normalize_path(p: &Path) -> PathBuf {
     let mut out = PathBuf::new();
-    let mut components = p.components();
 
-    // 1. Schritt: Den Anfang des Pfads (Wurzel, Tilde oder Relativ) verarbeiten
-    if let Some(first) = components.next() {
-        match first {
-            // Absolutes Wurzelverzeichnis ("/" auf Unix)
-            Component::RootDir => {
-                out = PathBuf::from("/");
-            }
-            // Windows-Laufwerkspräfixe (z. B. "C:") sauber übernehmen
-            Component::Prefix(prefix) => {
-                out.push(prefix.as_os_str());
-                // Wenn direkt danach das Root-Verzeichnis folgt (z. B. "C:\"), einlesen
-                if let Some(Component::RootDir) = components.clone().next() {
-                    out.push(Component::RootDir.as_os_str());
-                    components.next(); // Die Root-Komponente überspringen, da eben gepusht
-                }
-            }
-            // Tilde-Erweiterung für das Home-Verzeichnis (~/...)
-            Component::Normal(os_str) if os_str == "~" => {
-                let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-                if let Ok(home) = env::var(home_var) {
-                    out.push(home);
-                } else {
-                    out.push("~");
-                }
-            }
-            // Relative Pfad-Anfänge (z. B. ein Ordnername, "." oder "..")
-            // Hier wird das aktuelle Arbeitsverzeichnis (CWD) als globale Basis geladen
-            other => {
-                if let Ok(cwd) = env::current_dir() {
-                    out.push(cwd);
-                }
-                // Jetzt die allererste relative Komponente (z. B. "." oder "..") verarbeiten
-                match other {
-                    Component::CurDir => {}
-                    Component::ParentDir => {
-                        out.pop();
-                    }
-                    _ => out.push(other.as_os_str()),
-                }
-            }
-        }
-    }
-    else {
-        // Falls der übergebene Pfad komplett leer war ("")
-        if let Ok(cwd) = env::current_dir() {
-            out.push(cwd);
-        }
-    }
-
-    // 2. Schritt: Alle restlichen Pfad-Komponenten normalisieren
-    for comp in components {
-        match comp {
-            // Aktuelles Verzeichnis "." ignorieren
+    for component in p.components() {
+        match component {
+            Component::Prefix(prefix) => out.push(prefix.as_os_str()),
+            Component::RootDir => out.push(component.as_os_str()),
             Component::CurDir => {}
-            // Übergeordnetes Verzeichnis ".." entfernt den letzten Ordner
             Component::ParentDir => {
-                // Verhindert das Löschen von Windows-Laufwerken (C:) oder der Systemwurzel (/)
-                if let Some(Component::Normal(_)) = out.components().next_back() {
+                // Collapse "foo/.." lexically, but preserve leading ".." in
+                // relative paths. Absolute paths never escape their root.
+                if matches!(out.components().next_back(), Some(Component::Normal(_))) {
                     out.pop();
+                } else if !out.has_root() {
+                    out.push(component.as_os_str());
                 }
             }
-            // Normale Ordner und Dateien einfach anhängen
-            other => out.push(other.as_os_str()),
+            Component::Normal(part) => out.push(part),
         }
     }
 
     out
+}
+
+#[cfg(test)]
+mod normalize_path_tests {
+    use super::normalize_path;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn keeps_relative_paths_relative() {
+        assert_eq!(
+            normalize_path(Path::new("src/./module/../lib.rs")),
+            PathBuf::from("src/lib.rs")
+        );
+    }
+
+    #[test]
+    fn preserves_leading_parent_components() {
+        assert_eq!(
+            normalize_path(Path::new("../../src/../Cargo.toml")),
+            PathBuf::from("../../Cargo.toml")
+        );
+    }
+
+    #[test]
+    fn empty_and_current_directory_normalize_to_empty_relative_path() {
+        assert_eq!(normalize_path(Path::new("")), PathBuf::new());
+        assert_eq!(normalize_path(Path::new(".")), PathBuf::new());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn absolute_paths_do_not_escape_root() {
+        assert_eq!(
+            normalize_path(Path::new("/tmp/project/../../etc/../file")),
+            PathBuf::from("/file")
+        );
+    }
 }
 
 /// Tries to flexibly find the path given by the LLM within the project directory.
