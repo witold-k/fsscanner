@@ -69,28 +69,67 @@ impl Pathfilter {
     /// paths are resolved lexically against each configured root. Blocked directory
     /// names are matched as complete path components.
     pub fn contains(&self, name: &Path) -> bool {
+        if self.paths.is_empty() {
+            return false;
+        }
+
+        if name.is_absolute() {
+            let normalized = normalize_path(name);
+            return !Self::is_blocked(&normalized)
+                && self
+                    .paths
+                    .iter()
+                    .any(|base| normalized.strip_prefix(base).is_ok());
+        }
+
+        let normalized = normalize_path(name);
+        if Self::is_blocked(&normalized) {
+            return false;
+        }
+
         self.paths
             .iter()
-            .any(|base| Self::is_allowed_under(base, name))
+            .any(|base| Self::relative_path_stays_within(base, &normalized))
     }
 
     /// Checks whether a path is allowed to be written to.
     ///
     /// Writes are restricted to the first configured root.
     pub fn can_write(&self, name: &Path) -> bool {
-        self.paths
-            .first()
-            .is_some_and(|base| Self::is_allowed_under(base, name))
-    }
-
-    fn is_allowed_under(base: &Path, name: &Path) -> bool {
-        let normalized = if name.is_absolute() {
-            normalize_path(name)
-        } else {
-            normalize_path(&base.join(name))
+        let Some(base) = self.paths.first() else {
+            return false;
         };
 
-        !Self::is_blocked(&normalized) && normalized.strip_prefix(base).is_ok()
+        if name.is_absolute() {
+            let normalized = normalize_path(name);
+            return !Self::is_blocked(&normalized)
+                && normalized.strip_prefix(base).is_ok();
+        }
+
+        let normalized = normalize_path(name);
+        !Self::is_blocked(&normalized)
+            && Self::relative_path_stays_within(base, &normalized)
+    }
+
+    #[inline]
+    fn relative_path_stays_within(base: &Path, path: &Path) -> bool {
+        let mut depth = base.components().count();
+
+        for component in path.components() {
+            match component {
+                Component::ParentDir => {
+                    if depth == 0 {
+                        return false;
+                    }
+                    depth -= 1;
+                }
+                Component::Normal(_) => depth += 1,
+                Component::CurDir => {}
+                Component::Prefix(_) | Component::RootDir => return false,
+            }
+        }
+
+        depth >= base.components().count()
     }
 
     /// Checks blocked directory names component by component to avoid substring
