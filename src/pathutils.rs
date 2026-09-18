@@ -2,7 +2,6 @@
 // Copyright (c) 2026 Witold Kaminski
 
 use std::collections::HashSet;
-use std::env;
 use std::path::{Component, Path, PathBuf};
 
 pub fn from_versioned_project(current: &Path) -> PathBuf {
