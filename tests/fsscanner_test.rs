@@ -51,10 +51,17 @@ mod tests {
         // Track files seen by process_dir_map
         let seen = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
 
-        // Run the directory processor
+        // process_dir_map creates output parent directories even when the
+        // callback itself does not write output.
+        let output_root = std::env::temp_dir().join(format!(
+            "fsscanner-map-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&output_root);
+
         process_dir_map(
             crate_root.to_str().unwrap(),
-            "/dev/null", // output_root unused for this test
+            output_root.to_str().unwrap(),
             "rs",
             "ignored",
             {
@@ -66,6 +73,8 @@ mod tests {
             },
         )
         .unwrap();
+
+        let _ = std::fs::remove_dir_all(output_root);
 
         // Compare results
         let mut seen = seen.lock().unwrap().clone();

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use fsscanner::fileentry::FileEntry;
     use fsscanner::pathfilter::Pathfilter;
 
@@ -89,6 +89,12 @@ mod tests {
 
         let entries = FileEntry::vec_from_filtered_stringvec(Some(&filter), str_list);
 
+        if filter.contains(Path::new("this_file_does_not_exist_at_all.txt")) {
+            assert!(entries.is_err());
+            return;
+        }
+
+        let entries = entries.expect("accepted files should be readable");
         // If your filter configuration permits Cargo.toml, check the item exists in the collection
         let target_path = PathBuf::from("Cargo.toml");
         if filter.contains(&target_path) {
@@ -104,7 +110,8 @@ mod tests {
         ];
 
         let filter = Pathfilter::from_versioned_project();
-        let entries = FileEntry::vec_from_filtered_pathbufvec(Some(&filter), path_list);
+        let entries = FileEntry::vec_from_filtered_pathbufvec(Some(&filter), path_list)
+            .expect("Cargo.toml should be readable");
 
         let target_path = PathBuf::from("Cargo.toml");
         if filter.contains(&target_path) {

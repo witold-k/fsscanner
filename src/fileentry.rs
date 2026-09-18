@@ -70,154 +70,92 @@ impl FileEntry {
     pub fn vec_from_filtered_stringvec(
         filter: Option<&Pathfilter>,
         list: Vec<String>,
-    ) -> Vec<Self> {
-        if list.is_empty() {
-            return Vec::new();
-        }
-
-        let num_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-
-        let max_capacity = list.len();
-        let results = Arc::new(Mutex::new(Vec::with_capacity(max_capacity)));
-
-        // Clone the filter itself so it can safely be moved into worker threads.
-        // `None` means that no filtering should be performed.
-        let filter = filter.cloned();
-
-        let chunk_size = (max_capacity + num_threads - 1).div_ceil(num_threads);
-
-        {
-            let pool = ThreadPool::new(num_threads);
-            let mut iterator = list.into_iter();
-
-            loop {
-                let batch: Vec<String> = iterator
-                    .by_ref()
-                    .take(chunk_size)
-                    .filter(|s| !s.is_empty())
-                    .collect();
-
-                if batch.is_empty() {
-                    break;
-                }
-
-                let results_clone = Arc::clone(&results);
-                let filter_clone = filter.clone();
-
-                pool.execute(move || {
-                    let mut local_buf = Vec::with_capacity(batch.len());
-
-                    for pathstr in batch {
-                        let path_ref = Path::new(&pathstr);
-
-                        // No filter means every path is valid.
-                        let is_valid = filter_clone
-                            .as_ref()
-                            .is_none_or(|filter| filter.contains(path_ref));
-
-                        if is_valid {
-                            let data =
-                                std::fs::read_to_string(path_ref).unwrap_or_default();
-
-                            local_buf.push(Self {
-                                path: PathBuf::from(pathstr),
-                                data,
-                            });
-                        }
-                    }
-
-                    if !local_buf.is_empty() {
-                        let mut guard = results_clone.lock().unwrap();
-                        guard.extend(local_buf);
-                    }
-                });
-            }
-        }
-
-        let mut final_vec = Arc::into_inner(results)
-            .unwrap()
-            .into_inner()
-            .unwrap();
-
-        final_vec.shrink_to_fit();
-        final_vec
+    ) -> crate::Result<Vec<Self>> {
+        let paths = list
+            .into_iter()
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
+            .collect();
+        Self::vec_from_filtered_pathbufvec(filter, paths)
     }
 
-    /// Parallelly filters and reads a list of `PathBuf` objects by spinning up
-    /// a local `ThreadPool`.
+    /// Parallelly filters and reads a list of `PathBuf` objects.
     ///
-    /// If `filter` is `Some`, only paths accepted by the filter are included.
-    /// If `filter` is `None`, all paths are considered valid and are included.
+    /// All scheduled reads are allowed to finish. If any accepted path cannot
+    /// be read as UTF-8 text, the operation returns an error after joining all
+    /// workers instead of representing that file as empty.
     pub fn vec_from_filtered_pathbufvec(
         filter: Option<&Pathfilter>,
         list: Vec<PathBuf>,
-    ) -> Vec<Self> {
+    ) -> crate::Result<Vec<Self>> {
         if list.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         let num_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-
-        let max_capacity = list.len();
-        let results = Arc::new(Mutex::new(Vec::with_capacity(max_capacity)));
-
-        // Clone the filter itself so it can safely be moved into worker threads.
-        // `None` means that no filtering should be performed.
+            .map(|count| count.get())
+            .unwrap_or(1);
+        let chunk_size = list.len().div_ceil(num_threads);
+        let results = Arc::new(Mutex::new(Vec::with_capacity(list.len())));
+        let errors = Arc::new(Mutex::new(Vec::new()));
         let filter = filter.cloned();
+        let pool = ThreadPool::new(num_threads)?;
 
-        let chunk_size = (max_capacity + num_threads - 1).div_ceil(num_threads);
+        for batch in list.chunks(chunk_size) {
+            let batch = batch.to_vec();
+            let results = Arc::clone(&results);
+            let errors = Arc::clone(&errors);
+            let filter = filter.clone();
 
-        {
-            let pool = ThreadPool::new(num_threads);
-            let mut iterator = list.into_iter();
+            pool.execute(move || {
+                let mut local_results = Vec::with_capacity(batch.len());
+                let mut local_errors = Vec::new();
 
-            loop {
-                let batch: Vec<PathBuf> =
-                    iterator.by_ref().take(chunk_size).collect();
+                for path in batch {
+                    if !filter.as_ref().is_none_or(|filter| filter.contains(&path)) {
+                        continue;
+                    }
 
-                if batch.is_empty() {
-                    break;
-                }
-
-                let results_clone = Arc::clone(&results);
-                let filter_clone = filter.clone();
-
-                pool.execute(move || {
-                    let mut local_buf = Vec::with_capacity(batch.len());
-
-                    for path in batch {
-                        // No filter means every path is valid.
-                        let is_valid = filter_clone
-                            .as_ref()
-                            .is_none_or(|filter| filter.contains(&path));
-
-                        if is_valid {
-                            let data =
-                                std::fs::read_to_string(&path).unwrap_or_default();
-
-                            local_buf.push(Self { path, data });
+                    match std::fs::read_to_string(&path) {
+                        Ok(data) => local_results.push(Self { path, data }),
+                        Err(error) => {
+                            local_errors.push(format!("{}: {error}", path.display()));
                         }
                     }
+                }
 
-                    if !local_buf.is_empty() {
-                        let mut guard = results_clone.lock().unwrap();
-                        guard.extend(local_buf);
-                    }
-                });
-            }
+                if !local_results.is_empty() {
+                    results
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .extend(local_results);
+                }
+                if !local_errors.is_empty() {
+                    errors
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .extend(local_errors);
+                }
+            })?;
         }
 
-        let mut final_vec = Arc::into_inner(results)
-            .unwrap()
-            .into_inner()
-            .unwrap();
+        pool.join()?;
 
-        final_vec.shrink_to_fit();
-        final_vec
+        let errors = Arc::into_inner(errors)
+            .ok_or("file read errors still have multiple references")?
+            .into_inner()
+            .map_err(|_| "file read error mutex was poisoned")?;
+
+        if !errors.is_empty() {
+            return Err(io::Error::other(errors.join("\n")).into());
+        }
+
+        let mut results = Arc::into_inner(results)
+            .ok_or("file results still have multiple references")?
+            .into_inner()
+            .map_err(|_| "file result mutex was poisoned")?;
+        results.shrink_to_fit();
+        Ok(results)
     }
 }
 
