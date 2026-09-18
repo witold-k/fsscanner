@@ -8,7 +8,7 @@ mod tests {
     fn test_from_path_success() {
         // Cargo.toml exists in the root of every standard Rust package directory
         let path = PathBuf::from("Cargo.toml");
-        let entry = FileEntry::from_path(&path);
+        let entry = FileEntry::from_path(&path).expect("Cargo.toml must be readable");
 
         assert_eq!(entry.path, path);
         // The file content must contain the standard package header configuration
@@ -23,11 +23,30 @@ mod tests {
         // A path that is guaranteed not to exist in your project tree
         let path = PathBuf::from("this_file_does_not_exist_at_all.txt");
 
-        let entry = FileEntry::from_path(&path);
+        let result = FileEntry::from_path(&path);
 
-        assert_eq!(entry.path, path);
-        // unwrap_or_default() must fall back to an empty string on I/O missing errors
-        assert_eq!(entry.data, "");
+        assert!(result.is_err(), "missing files must return an I/O error");
+    }
+
+    #[test]
+    fn test_load_propagates_read_errors() {
+        let mut entry = FileEntry {
+            path: PathBuf::from("this_file_does_not_exist_at_all.txt"),
+            data: String::from("keep me"),
+        };
+
+        assert!(entry.load().is_err());
+        assert_eq!(entry.data, "keep me");
+    }
+
+    #[test]
+    fn test_new_load_propagates_read_errors() {
+        let entry = FileEntry {
+            path: PathBuf::from("this_file_does_not_exist_at_all.txt"),
+            data: String::new(),
+        };
+
+        assert!(entry.new_load().is_err());
     }
 
     #[test]

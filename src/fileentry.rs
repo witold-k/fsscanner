@@ -11,6 +11,7 @@ use crate::pathfilter::Pathfilter;
 use crate::threadpool::ThreadPool;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -28,37 +29,37 @@ pub struct FileEntry {
 impl FileEntry {
     /// Creates a new `FileEntry` instance from a file path.
     ///
-    /// If the file cannot be read, the content is set to an empty string.
+    /// Returns an error if the file cannot be read as UTF-8 text.
     #[inline(always)]
-    pub fn from_path(path: &Path) -> Self {
-        let data = std::fs::read_to_string(path).unwrap_or_default();
+    pub fn from_path(path: &Path) -> io::Result<Self> {
+        let data = std::fs::read_to_string(path)?;
 
-        Self {
+        Ok(Self {
             path: path.to_path_buf(),
             data,
-        }
+        })
     }
 
     /// Load data from path, overwriting the old one.
     ///
-    /// If the file cannot be read, the content is set to an empty string.
+    /// Returns an error if the file cannot be read as UTF-8 text.
     #[inline(always)]
-    pub fn new_load(self) -> Self {
-        let data = std::fs::read_to_string(&self.path).unwrap_or_default();
+    pub fn new_load(self) -> io::Result<Self> {
+        let data = std::fs::read_to_string(&self.path)?;
 
-        Self {
+        Ok(Self {
             path: self.path,
             data,
-        }
+        })
     }
 
     /// Load data from path, overwriting the old one.
     ///
-    /// If the file cannot be read, the content is set to an empty string.
+    /// Returns an error if the file cannot be read as UTF-8 text.
     #[inline(always)]
-    pub fn load(&mut self) -> &mut Self {
-        self.data = std::fs::read_to_string(&self.path).unwrap_or_default();
-        self
+    pub fn load(&mut self) -> io::Result<&mut Self> {
+        self.data = std::fs::read_to_string(&self.path)?;
+        Ok(self)
     }
 
     /// Parallelly filters and reads a list of path strings by spinning up
@@ -221,14 +222,11 @@ impl FileEntry {
 }
 
 impl FromStr for FileEntry {
-    type Err = std::convert::Infallible;
+    type Err = io::Error;
 
     #[inline(always)]
     fn from_str(pathstr: &str) -> Result<Self, Self::Err> {
-        let path = PathBuf::from(pathstr);
-        let data = std::fs::read_to_string(&path).unwrap_or_default();
-
-        Ok(Self { path, data })
+        Self::from_path(Path::new(pathstr))
     }
 }
 

@@ -28,13 +28,7 @@ where
     collect_files_fast(Path::new(input_root), extension, &mut files);
 
     for input_path in files {
-        if let Err(err) = callback(&input_path) {
-            eprintln!(
-                "Error processing {}: {:?}",
-                input_path.display(),
-                err
-            );
-        }
+        callback(&input_path)?;
     }
 
     Ok(())
@@ -54,13 +48,7 @@ where
     collect_files_fast(Path::new(input_root), extension, &mut files);
 
     for input_path in files {
-        if let Err(err) = callback(&mut state, &input_path) {
-            eprintln!(
-                "Error processing {}: {:?}",
-                input_path.display(),
-                err
-            );
-        }
+        callback(&mut state, &input_path)?;
     }
 
     Ok(state)
@@ -78,13 +66,7 @@ where
     collect_files_fast_multi(Path::new(input_root), extensions, &mut files);
 
     for input_path in files {
-        if let Err(err) = callback(&input_path) {
-            eprintln!(
-                "Error processing {}: {:?}",
-                input_path.display(),
-                err
-            );
-        }
+        callback(&input_path)?;
     }
 
     Ok(())
@@ -103,13 +85,7 @@ where
     collect_files_fast_multi(Path::new(input_root), extensions, &mut files);
 
     for input_path in files {
-        if let Err(err) = callback(&mut state, &input_path) {
-            eprintln!(
-                "Error processing {}: {:?}",
-                input_path.display(),
-                err
-            );
-        }
+        callback(&mut state, &input_path)?;
     }
 
     Ok(state)
