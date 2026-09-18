@@ -35,71 +35,30 @@ pub fn from_versioned_project(current: &Path) -> PathBuf {
 
 pub fn normalize_path(p: &Path) -> PathBuf {
     let mut out = PathBuf::new();
-    let mut components = p.components();
 
-    // 1. Schritt: Den Anfang des Pfads (Wurzel, Tilde oder Relativ) verarbeiten
-    if let Some(first) = components.next() {
-        match first {
-            // Absolutes Wurzelverzeichnis ("/" auf Unix)
-            Component::RootDir => {
-                out = PathBuf::from("/");
-            }
-            // Windows-Laufwerkspräfixe (z. B. "C:") sauber übernehmen
-            Component::Prefix(prefix) => {
-                out.push(prefix.as_os_str());
-                // Wenn direkt danach das Root-Verzeichnis folgt (z. B. "C:\"), einlesen
-                if let Some(Component::RootDir) = components.clone().next() {
-                    out.push(Component::RootDir.as_os_str());
-                    components.next(); // Die Root-Komponente überspringen, da eben gepusht
+    for component in p.components() {
+        match component {
+            Component::Prefix(prefix) => out.push(prefix.as_os_str()),
+            Component::RootDir => out.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                // Collapse "foo/.." lexically, but preserve leading ".." in
+                // relative paths. Absolute paths never escape their root.
+                if matches!(out.components().next_back(), Some(Component::Normal(_))) {
+                    out.pop();
+                } else if !out.has_root() {
+                    out.push(component.as_os_str());
                 }
             }
-            // Tilde-Erweiterung für das Home-Verzeichnis (~/...)
-            Component::Normal(os_str) if os_str == "~" => {
+            Component::Normal(part) if part == "~" && out.as_os_str().is_empty() => {
                 let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
                 if let Ok(home) = env::var(home_var) {
                     out.push(home);
                 } else {
-                    out.push("~");
+                    out.push(part);
                 }
             }
-            // Relative Pfad-Anfänge (z. B. ein Ordnername, "." oder "..")
-            // Hier wird das aktuelle Arbeitsverzeichnis (CWD) als globale Basis geladen
-            other => {
-                if let Ok(cwd) = env::current_dir() {
-                    out.push(cwd);
-                }
-                // Jetzt die allererste relative Komponente (z. B. "." oder "..") verarbeiten
-                match other {
-                    Component::CurDir => {}
-                    Component::ParentDir => {
-                        out.pop();
-                    }
-                    _ => out.push(other.as_os_str()),
-                }
-            }
-        }
-    }
-    else {
-        // Falls der übergebene Pfad komplett leer war ("")
-        if let Ok(cwd) = env::current_dir() {
-            out.push(cwd);
-        }
-    }
-
-    // 2. Schritt: Alle restlichen Pfad-Komponenten normalisieren
-    for comp in components {
-        match comp {
-            // Aktuelles Verzeichnis "." ignorieren
-            Component::CurDir => {}
-            // Übergeordnetes Verzeichnis ".." entfernt den letzten Ordner
-            Component::ParentDir => {
-                // Verhindert das Löschen von Windows-Laufwerken (C:) oder der Systemwurzel (/)
-                if let Some(Component::Normal(_)) = out.components().next_back() {
-                    out.pop();
-                }
-            }
-            // Normale Ordner und Dateien einfach anhängen
-            other => out.push(other.as_os_str()),
+            Component::Normal(part) => out.push(part),
         }
     }
 
