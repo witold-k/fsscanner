@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Witold Kaminski
 
 use std::collections::HashSet;
+use std::env;
 use std::path::{Component, Path, PathBuf};
 
 pub fn from_versioned_project(current: &Path) -> PathBuf {
@@ -47,6 +48,14 @@ pub fn normalize_path(p: &Path) -> PathBuf {
                     out.pop();
                 } else if !out.has_root() {
                     out.push(component.as_os_str());
+                }
+            }
+            Component::Normal(part) if part == "~" && out.as_os_str().is_empty() => {
+                let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+                if let Ok(home) = env::var(home_var) {
+                    out.push(home);
+                } else {
+                    out.push(part);
                 }
             }
             Component::Normal(part) => out.push(part),
