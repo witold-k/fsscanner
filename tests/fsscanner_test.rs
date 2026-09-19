@@ -190,3 +190,66 @@ fn test_collect_files_all_on_empty_or_invalid_path() {
     assert!(files.is_empty());
 }
 
+
+
+#[cfg(unix)]
+#[test]
+fn follows_directory_symlink_and_terminates_on_cycle() {
+    use std::os::unix::fs::symlink;
+    use fsscanner::fsscanner_base::collect_files_fast;
+
+    let base = std::env::temp_dir().join(format!("fsscanner-symlink-{}", std::process::id()));
+    let root = base.join("root");
+    let target = base.join("target");
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(target.join("linked.rs"), "fn linked() {}").unwrap();
+    symlink(&target, root.join("link")).unwrap();
+    symlink(&root, target.join("back")).unwrap();
+
+    let mut files = Vec::new();
+    collect_files_fast(&root, "rs", &mut files);
+
+    assert_eq!(files, vec![target.join("linked.rs")]);
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn collect_files_fast_multi_matches_multiple_extensions() {
+    use fsscanner::fsscanner_base::collect_files_fast_multi;
+
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    collect_files_fast_multi(&root, &["rs", "toml"], &mut files);
+
+    assert!(files.iter().any(|path| path.ends_with("src/lib.rs")));
+    assert!(files.iter().any(|path| path.ends_with("Cargo.toml")));
+}
+
+
+#[cfg(unix)]
+#[test]
+fn filtered_scan_rejects_symlink_outside_root() {
+    use fsscanner::fsscanner_base::collect_files_all_filtered;
+    use std::os::unix::fs::symlink;
+
+    let base = std::env::temp_dir().join(format!("fsscanner-filtered-scan-{}", std::process::id()));
+    let root = base.join("root");
+    let outside = base.join("outside");
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(root.join("inside.txt"), "inside").unwrap();
+    std::fs::write(outside.join("outside.txt"), "outside").unwrap();
+    symlink(&outside, root.join("escape")).unwrap();
+
+    let filter = fsscanner::pathfilter::Pathfilter::new(vec![root.clone()]);
+    let mut files = Vec::new();
+    collect_files_all_filtered(&root, &filter, &mut files);
+
+    assert!(files.contains(&root.join("inside.txt")));
+    assert!(!files.iter().any(|path| path.ends_with("outside.txt")));
+
+    std::fs::remove_dir_all(base).unwrap();
+}

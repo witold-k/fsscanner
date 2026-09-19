@@ -69,3 +69,61 @@ fn process_dir_state_and_map_propagates_worker_errors() {
     let error = result.expect_err("callback errors must be propagated");
     assert!(error.to_string().contains("state callback failed"));
 }
+
+
+#[test]
+fn process_dir_map_preserves_nested_path_and_replaces_suffix() {
+    let base = std::env::temp_dir().join(format!("fsscanner-map-path-{}", std::process::id()));
+    let input = base.join("input");
+    let output = base.join("output");
+    let nested = input.join("a/b");
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(nested.join("source.rs"), "content").unwrap();
+
+    let expected = output.join("a/b/source.out");
+    process_dir_map(
+        input.to_str().unwrap(),
+        output.to_str().unwrap(),
+        "rs",
+        "out",
+        move |_, mapped| {
+            assert_eq!(mapped, expected);
+            Ok(())
+        },
+    )
+    .unwrap();
+
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn process_dir_map_multi_builds_all_requested_suffixes() {
+    let base = std::env::temp_dir().join(format!("fsscanner-map-multi-path-{}", std::process::id()));
+    let input = base.join("input");
+    let output = base.join("output");
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&input).unwrap();
+    std::fs::write(input.join("source.rs"), "content").unwrap();
+
+    let expected_output = output.clone();
+    process_dir_map_multi(
+        input.to_str().unwrap(),
+        output.to_str().unwrap(),
+        "rs",
+        &["one", "two"],
+        move |_, mapped| {
+            assert_eq!(
+                mapped,
+                &[
+                    expected_output.join("source.one"),
+                    expected_output.join("source.two"),
+                ]
+            );
+            Ok(())
+        },
+    )
+    .unwrap();
+
+    std::fs::remove_dir_all(base).unwrap();
+}

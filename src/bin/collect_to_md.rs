@@ -17,12 +17,10 @@ fn main() -> Result<()> {
     }
 
     let dir = &args[1];
-    //let suffixes: Vec<String> = args[2..].iter().map(|s| s.to_string()).collect();
     let suffixes: Vec<&str> = args[2..].iter().map(|s| s.as_str()).collect();
     let buffer = RefCell::new(String::new());
 
     process_dir_with_some(dir, &suffixes, |filename: &Path| {
-        println!("{:?}", filename);
         let mut buffer = buffer.borrow_mut();
 
         // Add header

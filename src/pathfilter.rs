@@ -92,6 +92,26 @@ impl Pathfilter {
             .any(|base| Self::relative_path_stays_within(base, &normalized))
     }
 
+    /// Checks an existing, resolved filesystem target against the configured roots.
+    ///
+    /// Intended for symbolic-link targets: the target and each configured root are
+    /// canonicalized so a link cannot escape an allowed root.
+    pub fn contains_resolved(&self, name: &Path) -> bool {
+        let Ok(resolved) = name.canonicalize() else {
+            return false;
+        };
+        if Self::is_blocked(&resolved) {
+            return false;
+        }
+
+        self.paths.iter().any(|base| {
+            let base = base
+                .canonicalize()
+                .unwrap_or_else(|_| normalize_path(base));
+            resolved.strip_prefix(base).is_ok()
+        })
+    }
+
     /// Checks whether a path is allowed to be written to.
     ///
     /// Writes are restricted to the first configured root.

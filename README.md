@@ -50,8 +50,16 @@ The `fsscanner_base` module contains the basic traversal functions:
   supplied set.
 
 Traversal uses an explicit internal stack instead of recursive function calls.
-Normal directories follow a fast path; symbolic-link directories are
-canonicalized and tracked to prevent traversal cycles.
+Normal directories follow a fast path without canonicalization. Symbolic links are
+resolved only when encountered, and directory link targets are tracked to prevent
+traversal cycles. Filtered scans validate the resolved target before following a link.
+
+Traversal intentionally does not globally canonicalize or deduplicate ordinary
+directories. Consequently, if the same directory is reachable both through its
+regular path and through a symbolic-link alias, its files may be reported more than
+once. This trade-off keeps the common traversal path inexpensive while still
+preventing symbolic-link cycles. Callers that require unique physical files should
+deduplicate the collected results according to their own requirements.
 
 ### Sequential processing
 
@@ -119,10 +127,9 @@ Traversal is deliberately tolerant of individual filesystem entries that cannot
 be read: inaccessible entries are skipped so a scan can continue through the
 remaining tree.
 
-The current higher-level processing helpers likewise report callback failures to
-standard error and continue processing other files. Callers that require
-fail-fast or aggregated error semantics should account for that behavior when
-choosing an API.
+Parallel processing helpers allow already-scheduled work to finish, aggregate
+callback failures, and return them to the caller. Sequential helpers remain
+fail-fast and return the first callback error.
 
 ## Scope
 

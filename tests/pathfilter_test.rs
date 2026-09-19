@@ -76,3 +76,27 @@ fn empty_filter_rejects_everything() {
     assert!(!filter.contains(Path::new("file")));
     assert!(!filter.can_write(Path::new("file")));
 }
+
+
+#[cfg(unix)]
+#[test]
+fn resolved_symlink_target_must_stay_inside_root() {
+    use std::os::unix::fs::symlink;
+
+    let base = std::env::temp_dir().join(format!("fsscanner-filter-{}", std::process::id()));
+    let root = base.join("root");
+    let outside = base.join("outside");
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(root.join("inside.txt"), "inside").unwrap();
+    std::fs::write(outside.join("outside.txt"), "outside").unwrap();
+    symlink(root.join("inside.txt"), root.join("inside-link")).unwrap();
+    symlink(outside.join("outside.txt"), root.join("outside-link")).unwrap();
+
+    let filter = Pathfilter::new(vec![root.clone()]);
+    assert!(filter.contains_resolved(&root.join("inside-link")));
+    assert!(!filter.contains_resolved(&root.join("outside-link")));
+
+    std::fs::remove_dir_all(base).unwrap();
+}
