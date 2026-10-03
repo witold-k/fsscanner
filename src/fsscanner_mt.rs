@@ -24,6 +24,45 @@ impl fmt::Display for ProcessingErrors {
 
 impl Error for ProcessingErrors {}
 
+/// Returns whether `input` is newer than `output`, or `output` is missing.
+pub fn needs_update(input: &Path, output: &Path) -> Result<bool> {
+    let input_modified = std::fs::metadata(input)?.modified()?;
+
+    match std::fs::metadata(output) {
+        Ok(metadata) => Ok(input_modified > metadata.modified()?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
+        Err(error) => Err(error.into()),
+    }
+}
+
+
+/// Returns whether `output` is missing or any matching input file is newer.
+///
+/// This is useful for many-to-one build steps such as linking object files
+/// into one final artifact.
+pub fn dir_needs_update(
+    input_root: &str,
+    extension: &str,
+    output: &Path,
+) -> Result<bool> {
+    let output_modified = match std::fs::metadata(output) {
+        Ok(metadata) => metadata.modified()?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+        Err(error) => return Err(error.into()),
+    };
+
+    let mut files = Vec::new();
+    collect_files_fast(Path::new(input_root), extension, &mut files);
+
+    for input in files {
+        if std::fs::metadata(input)?.modified()? > output_modified {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 fn worker_count() -> usize {
     std::thread::available_parallelism()
         .map(|count| count.get())
@@ -132,6 +171,32 @@ where
     }
 
     finish(pool, errors)
+}
+
+pub fn process_dir_map_outdated_with_workers<F>(
+    input_root: &str,
+    output_root: &str,
+    extension: &str,
+    suffix: &str,
+    workers: usize,
+    callback: F,
+) -> Result<()>
+where
+    F: Fn(&Path, &Path) -> Result<()> + Send + Sync + 'static,
+{
+    process_dir_map_with_workers(
+        input_root,
+        output_root,
+        extension,
+        suffix,
+        workers,
+        move |input, output| {
+            if needs_update(input, output)? {
+                callback(input, output)?;
+            }
+            Ok(())
+        },
+    )
 }
 
 pub fn process_dir_map_multi<F>(
