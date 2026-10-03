@@ -63,7 +63,28 @@ pub fn process_dir_map<F>(
 where
     F: Fn(&Path, &Path) -> Result<()> + Send + Sync + 'static,
 {
-    let pool = ThreadPool::new(worker_count())?;
+    process_dir_map_with_workers(
+        input_root,
+        output_root,
+        extension,
+        suffix,
+        worker_count(),
+        callback,
+    )
+}
+
+pub fn process_dir_map_with_workers<F>(
+    input_root: &str,
+    output_root: &str,
+    extension: &str,
+    suffix: &str,
+    workers: usize,
+    callback: F,
+) -> Result<()>
+where
+    F: Fn(&Path, &Path) -> Result<()> + Send + Sync + 'static,
+{
+    let pool = ThreadPool::new(workers)?;
     let callback = Arc::new(callback);
     let errors = Arc::new(Mutex::new(Vec::new()));
 
