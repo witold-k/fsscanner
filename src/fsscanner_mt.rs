@@ -3,26 +3,49 @@
 
 use crate::fsscanner_base::collect_files_fast;
 use crate::threadpool::ThreadPool;
-use crate::Result;
-use std::error::Error;
+use crate::{Error, Result};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug)]
-struct ProcessingErrors(Vec<String>);
+/// Returns whether `input` is newer than `output`, or `output` is missing.
+pub fn needs_update(input: &Path, output: &Path) -> Result<bool> {
+    let input_modified = std::fs::metadata(input)?.modified()?;
 
-impl fmt::Display for ProcessingErrors {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} parallel processing error(s)", self.0.len())?;
-        for error in &self.0 {
-            write!(f, "\n- {error}")?;
-        }
-        Ok(())
+    match std::fs::metadata(output) {
+        Ok(metadata) => Ok(input_modified > metadata.modified()?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
+        Err(error) => Err(error.into()),
     }
 }
 
-impl Error for ProcessingErrors {}
+
+/// Returns whether `output` is missing or any matching input file is newer.
+///
+/// This is useful for many-to-one build steps such as linking object files
+/// into one final artifact.
+pub fn dir_needs_update(
+    input_root: &str,
+    extension: &str,
+    output: &Path,
+) -> Result<bool> {
+    let output_modified = match std::fs::metadata(output) {
+        Ok(metadata) => metadata.modified()?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+        Err(error) => return Err(error.into()),
+    };
+
+    let mut files = Vec::new();
+    collect_files_fast(Path::new(input_root), extension, &mut files);
+
+    for input in files {
+        if std::fs::metadata(input)?.modified()? > output_modified {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
 
 /// Returns whether `input` is newer than `output`, or `output` is missing.
 pub fn needs_update(input: &Path, output: &Path) -> Result<bool> {
@@ -76,14 +99,14 @@ fn finish(
     pool.join()?;
 
     let errors = Arc::into_inner(errors)
-        .ok_or("processing errors still have multiple references")?
+        .ok_or(Error::Internal("processing errors still have multiple references"))?
         .into_inner()
-        .map_err(|_| "processing error mutex was poisoned")?;
+        .map_err(|_| Error::Internal("processing error mutex was poisoned"))?;
 
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(ProcessingErrors(errors).into())
+        Err(Error::Processing(errors))
     }
 }
 
@@ -328,18 +351,18 @@ where
     pool.join()?;
 
     let errors = Arc::into_inner(errors)
-        .ok_or("processing errors still have multiple references")?
+        .ok_or(Error::Internal("processing errors still have multiple references"))?
         .into_inner()
-        .map_err(|_| "processing error mutex was poisoned")?;
+        .map_err(|_| Error::Internal("processing error mutex was poisoned"))?;
 
     if !errors.is_empty() {
-        return Err(ProcessingErrors(errors).into());
+        return Err(Error::Processing(errors));
     }
 
     let state = Arc::into_inner(state)
-        .ok_or("state still has multiple references")?
+        .ok_or(Error::Internal("state still has multiple references"))?
         .into_inner()
-        .map_err(|_| "state mutex was poisoned")?;
+        .map_err(|_| Error::Internal("state mutex was poisoned"))?;
 
     Ok(state)
 }

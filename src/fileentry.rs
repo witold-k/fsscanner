@@ -7,6 +7,7 @@
 //! text content. It spawns a temporary, thread pool per batch operation
 //! to read files in parallel, ensuring clean and deterministic join behavior via RAII.
 
+use crate::error::Error;
 use crate::pathfilter::Pathfilter;
 use crate::threadpool::ThreadPool;
 use serde::{Deserialize, Serialize};
@@ -142,18 +143,18 @@ impl FileEntry {
         pool.join()?;
 
         let errors = Arc::into_inner(errors)
-            .ok_or("file read errors still have multiple references")?
+            .ok_or(Error::Internal("file read errors still have multiple references"))?
             .into_inner()
-            .map_err(|_| "file read error mutex was poisoned")?;
+            .map_err(|_| Error::Internal("file read error mutex was poisoned"))?;
 
         if !errors.is_empty() {
-            return Err(io::Error::other(errors.join("\n")).into());
+            return Err(Error::Processing(errors));
         }
 
         let mut results = Arc::into_inner(results)
-            .ok_or("file results still have multiple references")?
+            .ok_or(Error::Internal("file results still have multiple references"))?
             .into_inner()
-            .map_err(|_| "file result mutex was poisoned")?;
+            .map_err(|_| Error::Internal("file result mutex was poisoned"))?;
         results.shrink_to_fit();
         Ok(results)
     }
