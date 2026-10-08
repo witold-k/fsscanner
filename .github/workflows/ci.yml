@@ -5,7 +5,6 @@ name: Rust & Java CI
 
 on:
   push:
-    branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master, develop ]
 

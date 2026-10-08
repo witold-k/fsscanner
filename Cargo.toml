@@ -6,5 +6,4 @@ edition = "2024"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 
-# -- threadpool --------------------------------------------------------------
-crossbeam-channel = "0.5.17"
+threadpool = { git = "https://github.com/witold-k/threadpool" }

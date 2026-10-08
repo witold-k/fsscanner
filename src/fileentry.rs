@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Witold Kaminski
 
-//! File content representation using a localized custom ThreadPool.
+//! File content representation using the external `threadpool` crate.
 //!
 //! This module provides the [`FileEntry`] struct, which pairs a file path with its
 //! text content. It spawns a temporary, thread pool per batch operation
@@ -9,7 +9,7 @@
 
 use crate::error::Error;
 use crate::pathfilter::Pathfilter;
-use crate::threadpool::ThreadPool;
+use threadpool::ThreadPool;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io;

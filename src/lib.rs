@@ -8,7 +8,6 @@ pub mod fsscanner_mt;
 pub mod fsscanner_st;
 pub mod pathfilter;
 pub mod pathutils;
-pub mod threadpool;
 
 pub use error::{Error, Result};
 

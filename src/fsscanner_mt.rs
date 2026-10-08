@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Witold Kaminski
 
 use crate::fsscanner_base::collect_files_fast;
-use crate::threadpool::ThreadPool;
+use threadpool::ThreadPool;
 use crate::{Error, Result};
 use std::fmt;
 use std::path::{Path, PathBuf};

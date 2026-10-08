@@ -28,8 +28,8 @@ before invoking the user callback.
 - **Efficient filtering** — files can be collected by a single extension,
   multiple extensions, or without an extension filter.
 - **Optional parallel processing** — higher-level helpers can execute
-  independent file-processing callbacks through a lightweight internal thread
-  pool.
+  independent file-processing callbacks through the separate [`threadpool`](https://github.com/witold-k/threadpool)
+  crate.
 - **Path-preserving output mapping** — processing helpers can reproduce the
   relative input directory structure below a separate output root and replace
   file suffixes automatically.
@@ -81,7 +81,7 @@ Typical workflows can:
 2. derive each file's path relative to the input root,
 3. reproduce that path below a separate output root,
 4. replace the file extension with one or more output suffixes, and
-5. invoke a user callback in the internal thread pool.
+5. invoke a user callback using the `threadpool` crate.
 
 This makes the library useful for workloads such as source transformation,
 document conversion, code generation, indexing, or other file-oriented pipelines

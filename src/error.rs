@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Witold Kaminski
 
-use crate::threadpool::ThreadPoolError;
+use threadpool::ThreadPoolError;
 use std::fmt;
 use std::io;
 

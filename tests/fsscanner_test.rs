@@ -130,7 +130,6 @@ fn test_collect_files_all_scans_src_recursively() {
     assert!(files.contains(&src_root.join("fsscanner_st.rs")));
     assert!(files.contains(&src_root.join("pathfilter.rs")));
     assert!(files.contains(&src_root.join("pathutils.rs")));
-    assert!(files.contains(&src_root.join("threadpool.rs")));
 
     // File in nested directory.
     assert!(files.contains(
